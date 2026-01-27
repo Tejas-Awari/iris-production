@@ -1,0 +1,6 @@
+venv/
+__pycache__/
+.git/
+.dvc/
+data/
+models/  # We will assume models are pulled from a cloud store in prod, or copied explicitly
