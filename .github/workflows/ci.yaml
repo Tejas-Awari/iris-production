@@ -1,4 +1,4 @@
-name: CI Pipeline
+name: CI/CD Pipeline
 
 on:
   push:
@@ -7,34 +7,51 @@ on:
     branches: [ main ]
 
 jobs:
+  # JOB 1: TEST
   build-and-test:
     runs-on: ubuntu-latest
-
     steps:
-    # 1. Check out the code from GitHub
     - uses: actions/checkout@v3
 
-    # 2. Set up Python 3.9 (Clean environment!)
-    - name: Set up Python 3.9
+    - name: Set up Python 3.12
       uses: actions/setup-python@v4
       with:
         python-version: '3.12'
 
-    # 3. Install your project dependencies
     - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pytest httpx  # Install test tools
+        pip install pytest httpx
 
-    # 4. Generate Data (Since we didn't push DVC data to a cloud bucket yet)
     - name: Run Data Ingestion
       run: python src/data_loader.py
 
-    # 5. Train Model (To ensure api has a model to load)
     - name: Train Model
       run: python src/train.py
 
-    # 6. Run Tests
     - name: Run Tests
       run: python -m pytest
+
+  # JOB 2: PUBLISH (Only runs if Test passes)
+  publish-docker:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    # Only publish if we are pushing to 'main', not on pull requests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/iris-production:latest
